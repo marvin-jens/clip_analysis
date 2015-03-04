@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from sequence_data.io import fasta_chunks
+from byo.io import fasta_chunks
 from collections import defaultdict
-from sequence_data import k_mers
+from byo import k_mers
 import sys,os
 
 from optparse import *

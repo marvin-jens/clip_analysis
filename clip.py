@@ -26,7 +26,7 @@ switch allows for consensus filtering.
 
 parser = OptionParser(usage=usage)
 parser.add_option("-l","--logfile",dest="logfile",default="parclip.log",help="logfile to use")
-parser.add_option("-S","--system",dest="system",type=str,default="hg19",help="model system database (hg18|ce6)")
+parser.add_option("-S","--system",dest="system",type=str,default="hg19",help="model system database (hg19|ce6|mm9)")
 parser.add_option("-t","--track",dest="track",default="",help="path to write tracks into")
 parser.add_option("-a","--annotation",dest="annotation",default="",help="which annotation to use to assign clusters to sense/antisense")
 parser.add_option("-d","--discard",dest="discard",default="",help="discard clusters overlapping with this annotation track")
@@ -63,10 +63,14 @@ system = getattr(byo.systems,options.system)
 
 from byo.track import Track
 from byo.io.track_accessors import ArrayAccessor,TSVAccessor
-cov_track = Track(os.path.join(options.track,"coverage"),TSVAccessor,mode="w",dtype=numpy.uint32,auto_flush=True)
-conv_track = Track(os.path.join(options.track,"conversions"),TSVAccessor,mode="w",auto_flush=True)
-#cov_track = Track(os.path.join(options.track,"coverage"),ArrayAccessor,mode="w",dtype=numpy.uint32,auto_flush=True,system=options.system)
-#conv_track = Track(os.path.join(options.track,"conversions"),ArrayAccessor,mode="w",auto_flush=True,system=options.system)
+if options.track:
+    cov_track = Track(os.path.join(options.track,"coverage"),TSVAccessor,mode="w",dtype=numpy.uint32,auto_flush=True)
+    conv_track = Track(os.path.join(options.track,"conversions"),TSVAccessor,mode="w",auto_flush=True)
+
+def update_tracks(cluster):
+    cov_track.get(cluster.chrom,cluster.start,cluster.end,cluster.strand)[:] = cluster.coverage
+    conv_track.get(cluster.chrom,cluster.start,cluster.end,cluster.strand)[:] = cluster.conversions
+
 
 annotation = Annotator(options.system,ann_path=options.annotation,auto_flush=True)
 
@@ -81,10 +85,6 @@ if options.mask:
     for mask in options.mask:
         chrom,start,end = mask.replace("-",":").split(":")
         masked.append((chrom,int(start),int(end)))
-
-def update_tracks(cluster):
-    cov_track.get(cluster.chrom,cluster.start,cluster.end,cluster.strand)[:] = cluster.coverage
-    conv_track.get(cluster.chrom,cluster.start,cluster.end,cluster.strand)[:] = cluster.conversions
 
 anti_sense = {"+":"-","-":"+"}
 stat_types = {
@@ -160,7 +160,6 @@ try:
         if cluster.chrom.startswith('rRNA'): continue
         
         if options.track:
-            cluster.parse_reads()
             update_tracks(cluster)
 
         ann_str,classes = annotation.get_str(cluster.chrom,cluster.start,cluster.end,cluster.strand)
