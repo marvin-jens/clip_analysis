@@ -70,10 +70,10 @@ class EditedCluster(ReadCluster):
         
         self.readcount = count_functions[count_func]
         self.signature = signature
-        # these are only valid after a call to build()
-        self.editstats = defaultdict(int)
-        self.read_support = defaultdict(int)
-        self.sig_support = defaultdict(int)
+
+        self.editstat_dict = defaultdict(int)
+        self.read_support_dict = defaultdict(int)
+        self.sig_support_dict = defaultdict(int)
         
         self.ref = ""
         self.counts = []
@@ -94,14 +94,14 @@ class EditedCluster(ReadCluster):
         
         # take care of the mismatches
         for pos,edit,w,lib in self.all_edits():
-            self.read_support[lib] += w
+            self.read_support_dict[lib] += w
             edit = strand_translate[self.strand][edit]
-            self.editstats[edit] += w
+            self.editstat_dict[edit] += w
 
             signature = self.signature.get(lib,defaultsig)
             if edit in signature:
                 self.signature_counts[pos] += w
-                self.sig_support[lib] += w
+                self.sig_support_dict[lib] += w
 
             a,b = edit
             if not (a in indices and b in indices):
@@ -120,11 +120,11 @@ class EditedCluster(ReadCluster):
         x0 = self.start
         for start,end,w,n_edits in zip(self.starts,self.ends,self.counts,self.n_edits):
             self.coverage[start-x0:end-x0] += w
-            self.editstats['total'] += w
+            self.editstat_dict['total'] += w
             if n_edits == 0:
-                self.editstats['perfect'] += w
+                self.editstat_dict['perfect'] += w
             else:
-                self.editstats['%d_edit' % n_edits] += w
+                self.editstat_dict['%d_edit' % n_edits] += w
 
         # using self.coverage and self.sequence we now add the implicit 
         # nucleotide observations from the matches
@@ -153,6 +153,21 @@ class EditedCluster(ReadCluster):
     @requires_read_parsing
     def conversions(self):
         return self.signature_counts
+
+    @property
+    @requires_read_parsing
+    def editstats(self):
+        return self.editstat_dict
+
+    @property
+    @requires_read_parsing
+    def read_support(self):
+        return self.read_support_dict
+
+    @property
+    @requires_read_parsing
+    def sig_support(self):
+        return self.sig_support_dict
 
     def all_edits(self):
         """

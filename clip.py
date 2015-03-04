@@ -2,8 +2,6 @@
 from byo import rev_comp,complement
 from byo.clip.bamsource import BAM_ClusterGenerator
 from byo.clip.scoredcluster import ScoredCluster
-from byo.clip.statistics import Stats
-from byo.annotation.annotator import Annotator
 
 import os
 import sys
@@ -28,9 +26,8 @@ parser = OptionParser(usage=usage)
 parser.add_option("-l","--logfile",dest="logfile",default="parclip.log",help="logfile to use")
 parser.add_option("-S","--system",dest="system",type=str,default="hg19",help="model system database (hg19|ce6|mm9)")
 parser.add_option("-t","--track",dest="track",default="",help="path to write tracks into")
-parser.add_option("-a","--annotation",dest="annotation",default="",help="which annotation to use to assign clusters to sense/antisense")
 parser.add_option("-F","--fp_flag",dest="fp_flag",default="markov",help="the flag representing false-positive (default='markov'). Only used for gathering statistics.")
-parser.add_option("-d","--discard",dest="discard",default="",help="discard clusters overlapping with this annotation track")
+parser.add_option("-d","--discard",dest="discard",default="",help="discard clusters overlapping with this track")
 parser.add_option("-M","--mask",dest="mask",default=[],action="append",help="can be used multiple times to pass genomic intervals (samtools 0-based syntax chrX:start-end) that should be skipped for cluster-building (e.g. ribosomal DNA)")
 parser.add_option("-m","--mode",dest="mode",default="TC",help="conversion events to look for")
 parser.add_option("-s","--stats",dest="stats",default="",help="filename to dump conversion statistics to")
@@ -70,7 +67,6 @@ def update_tracks(cluster):
     cov_track.get(cluster.chrom,cluster.start,cluster.end,cluster.strand)[:] = cluster.coverage
     conv_track.get(cluster.chrom,cluster.start,cluster.end,cluster.strand)[:] = cluster.conversions
 
-annotation = Annotator(options.system,ann_path=options.annotation,auto_flush=True)
 
 if options.discard:
     def nonempty_channel(line):
@@ -84,20 +80,9 @@ if options.mask:
         chrom,start,end = mask.replace("-",":").split(":")
         masked.append((chrom,int(start),int(end)))
 
-anti_sense = {"+":"-","-":"+"}
-
+from byo.clip.statistics import Stats
 all_stats = Stats(path=options.stats)
-# dummy, only used to aggregate editstats for kept clusters 
-# that in the end will be written to all_stats, too.
 kept_stats = Stats()
-
-from collections import defaultdict
-N = defaultdict(int)
-
-from byo.clip import statistics
-raw_edit_keys = {}
-raw_edit_keys['+'] = sorted(statistics.edit_map.keys())
-raw_edit_keys['-'] = [statistics.edit_map[k] for k in raw_edit_keys['+']]
 
 if options.cluster_stats:
     raw_stats = file(options.cluster_stats,'w')
@@ -123,6 +108,8 @@ def debug_output(cluster):
     print conv_str(cluster.conversions)
     print "-----"
 
+from collections import defaultdict
+N = defaultdict(int)
 
 try:
     # make or parse a list of group identifiers for the BAM files
@@ -144,11 +131,11 @@ try:
     for cluster in cluster_generator:
         if cluster.chrom.startswith('rRNA'): continue
 
-        N["total"] += 1 
-        all_stats.update_stats("total",cluster.editstats,cluster.strand)
-
         if options.track:
             update_tracks(cluster)
+
+        N["total"] += 1 
+        all_stats.update_stats("total",cluster.editstats,cluster.strand)
 
         decoy_hit = bool(re.search(options.fp_flag,cluster.chrom))
         if decoy_hit:
@@ -188,7 +175,6 @@ try:
             
         if options.discard:
             discard_hits = array(discard.get(cluster.chrom,cluster.start,cluster.end,cluster.strand)).sum()
-            discard_hits += array(discard.get(cluster.chrom,cluster.start,cluster.end,anti_sense[cluster.strand])).sum()
             
             if discard_hits:
                 logger.debug("cluster '%s' overlaps %d elements from the discard track. Discarded." % (cluster.short,discard_hits))
@@ -226,7 +212,6 @@ try:
         total_edits = cluster.editstats['edits']
         total_entropy = cluster.entropy_score
         
-        #ann_str,classes = annotation.get_str(cluster.chrom,cluster.start,cluster.end,cluster.strand)
         cid = cluster.name #"CID_%06d" % N["kept"]
         attr_str = 'name="%s"; n_reads="%s"; n_uniq="%s"; ccr="%d";' % \
         (cid,cluster.n_reads,cluster.uniq_reads,conv_peak+1)

@@ -10,8 +10,8 @@ class Stats(object):
         self.path = path
         self.store = None
 
-    def update_stats(self,decoy_flag,stats,sense):
-        fstats = self.editstats[decoy_flag]
+    def update_stats(self,key,stats,sense):
+        fstats = self.editstats[key]
         if sense == "-":
             for k,v in stats.items():
                 if not "N" in k: fstats[edit_map.get(k,k)] += v
@@ -19,7 +19,7 @@ class Stats(object):
             for k,v in stats.items():
                 if not "N" in k: fstats[k] += v
 
-        self.editstats[decoy_flag] = fstats
+        self.editstats[key] = fstats
 
     def save_dict(self,title="count statistics",stats={},labels=["key","value"]):
         block = ["%s\t%s" % (k,stats[k]) for k in sorted(stats.keys())]
@@ -51,7 +51,7 @@ class Stats(object):
         for key in keys:
             #if not key in editstats: continue
             stats = editstats[key]
-            if key == "antisense":
+            if key == "decoy":
                 sign = -1
             else:
                 sign = 1
