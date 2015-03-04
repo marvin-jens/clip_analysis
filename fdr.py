@@ -344,7 +344,7 @@ class ClusterSet(object):
         for i,gff in enumerate(source):
             N["total"] += 1
             gff = list(gff)
-            gff[8] = gff[8].rstrip() + ' filtered_by="%s"; est_FDR="%.3f";' % (",".join(method),5)
+            gff[8] = gff[8].rstrip() + ' filtered_by="%s";' % (",".join(method))
 
             out = "\t".join([str(g) for g in gff])
             if i in kept_indices:
@@ -356,7 +356,8 @@ class ClusterSet(object):
                     print out
             else:
                 N["low_score"] += 1
-        
+                sys.stderr.write(out+'\n')
+
         self.filter_stats = N
 
 scoring_functions = {
