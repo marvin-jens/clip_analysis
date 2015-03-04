@@ -39,7 +39,7 @@ class ScoredCluster(EditedCluster):
             "max_uniq","avg_uniq","cum_uniq",
             "max_mapq","avg_mapq","cum_mapq",
             "max_pp","avg_pp","cum_pp",
-            "score","signature_density","iclip_score","profile_KL","seq_entropy","entropy_score"
+            "conversion_score","signature_density","iclip_score","profile_KL","seq_entropy","entropy_score","edits"
         ]
         self._map_scored = False
 
@@ -49,6 +49,16 @@ class ScoredCluster(EditedCluster):
             self._scorefuncname = "iclip_score"
         else:
             self._scorefuncname = "conversion_score"
+
+        from byo.clip.statistics import edit_map
+        self.edit_keys = [
+            # mismatches, deletions
+            'AC', 'AG', 'AT', 'A_', 
+            'CA', 'CG', 'CT', 'C_',
+            'GA', 'GC', 'GT', 'G_',
+            'TA', 'TC', 'TG', 'T_',
+            '_A', '_C', '_G', '_T'  # insertions
+        ]
 
     @requires_read_parsing
     def parse_map_scores(self):
@@ -218,3 +228,13 @@ class ScoredCluster(EditedCluster):
     @requires_read_parsing
     def n_conv_pos(self):
         return (self.conversions > 0).sum()
+    
+    @property
+    def edits(self):
+        #from byo.clip.statistics import edit_map
+        #if self.strand == "+":
+            #return ",".join([str(self.editstats[k]) for k in self.edit_keys])
+        #else:
+            #return ",".join([str(self.editstats[edit_map[k]]) for k in self.edit_keys])
+
+        return ",".join([str(self.editstats[k]) for k in self.edit_keys])

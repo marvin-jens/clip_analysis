@@ -58,6 +58,7 @@ class NamedTupleImporter(object):
         'floatlist' : lambda x : makelist(x,float),
         'strlist' : lambda x : makelist(x,str),
         'float' : float,
+        'bool' : lambda x : x == "True",
         'str' : lambda x : str(x).strip()
     }
 
