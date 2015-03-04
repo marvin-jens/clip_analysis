@@ -41,6 +41,19 @@ for edit in itertools.product('ACGTN_',repeat=2):
     edit = "".join(edit)
     strand_translate['+'][edit] = edit
     strand_translate['-'][edit] = complement(edit)
+
+
+def requires_read_parsing(f):
+    """
+    A decorator that wraps functions or properties that 
+    require to go through the list of all alignments and 
+    parse them.
+    """
+    def wrapper(self,*args,**kwargs):
+        if not self._parsed:
+            self.parse_reads()
+        return f(self,*args,**kwargs)
+    return wrapper
     
 from readcluster import ReadCluster
 class EditedCluster(ReadCluster):
@@ -69,8 +82,10 @@ class EditedCluster(ReadCluster):
         self._parsed = False
 
     def parse_reads(self):
+        if self._parsed:
+            return
         self.nuc_matrix = np.zeros((self.L,4),dtype=np.float32)
-        self.conversions = np.zeros(self.L,dtype=np.float32)
+        self.signature_counts = np.zeros(self.L,dtype=np.float32)
 
         signature = {}
         for lib,sig in self.signature.items():
@@ -85,7 +100,7 @@ class EditedCluster(ReadCluster):
 
             signature = self.signature.get(lib,defaultsig)
             if edit in signature:
-                self.conversions[pos] += w
+                self.signature_counts[pos] += w
                 self.sig_support[lib] += w
 
             a,b = edit
@@ -124,15 +139,20 @@ class EditedCluster(ReadCluster):
             else:
                 pos = np.array(self.starts,dtype=np.uint32) - self.start
                
-            self.conversions.put(pos,self.counts)
+            self.signature_counts.put(pos,self.counts)
             
     @property
+    @requires_read_parsing
     def sequence(self):
-        if not self._parsed: self.parse_reads()
         if self.strand == "-":
             return complement(self.ref)
         else:
             return "".join(self.ref)
+
+    @property
+    @requires_read_parsing
+    def conversions(self):
+        return self.signature_counts
 
     def all_edits(self):
         """
@@ -141,7 +161,7 @@ class EditedCluster(ReadCluster):
         (normalized) multiplicities of the read.
         As a side-effect, this fills the self.counts, self.n_edits, and self.seqs lists,
         which allows to quickly access read multiplicities, total edit distances, and the
-        correct reference sequence later.
+        correct reference sequence for subsequent steps.
         """
 
         self.counts = []

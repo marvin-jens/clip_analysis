@@ -7,8 +7,9 @@ from collections import defaultdict
 
 class Annotator(object):
     def __init__(self,system_name,ann_path="",**kwargs):
-        from byo import systems
-        system = getattr(systems,system_name)
+        import importlib
+        system = importlib.import_module("byo.systems.%s" % system_name)
+
         if ann_path:
             self.annotation = system.get_annotation_track(path=ann_path,annotation_filter=self.channel,**kwargs)
         else:

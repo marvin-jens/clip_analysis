@@ -8,21 +8,20 @@ import os,re
 from logging import debug,warning,error,info
 from numpy import uint32, float32
 
-root = byo.config.systems['hg19']
+root = byo.config.systems_root
 
-genome = Track(os.path.join(root,"genome"),GenomeAccessor,system='hg19')
+genome = Track(os.path.join(root,"reference","hg19"),GenomeAccessor,system='hg19')
 
-def get_annotation_track(path=os.path.join(root,"system_annotation"),accessor=AnnotationAccessor,**kwargs):
+def get_annotation_track(path=os.path.join(root,"annotation","hg19","compiled"),accessor=AnnotationAccessor,**kwargs):
     return Track(path,accessor,**kwargs)
 
-def get_refGenes(path = os.path.join(root,'annotation','wgEncodeGencodeBasicV17.ucsc'))):
+def get_refGenes(path = os.path.join(root,'annotation','hg19','wgEncodeGencodeBasicV17.ucsc')):
     from byo.gene_model import transcripts_from_UCSC
-    import byo
-    return transcripts_from_UCSC(path,system=byo.hg19)
+    return transcripts_from_UCSC(path,system=globals())
 
 chr_sizes = {}
 try:
-    for c in Importer(os.path.join(root,"chrom.sizes"),skip=[2],descr="## chrom:str \t size:int \t fileName:str"):
+    for c in Importer(os.path.join(root,'reference','hg19',"chrom.sizes"),descr="## chrom:str \t size:int"):
         chr_sizes[c.chrom] = c.size
 except IOError:
     loaded = False

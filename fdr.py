@@ -10,14 +10,14 @@ seterr(all='ignore')
 usage = """
   %prog [options] <cluster_stats.tsv> <all_clusters.gff> 
 
-Analyze cluster statistics and estimate false discovery rates based on sense/antisense distributions.
+Analyze cluster statistics and estimate false discovery rates based on reference/decoy hit distributions.
 """
 
 parser = OptionParser(usage=usage)
 parser.add_option("-l","--logfile",dest="logfile",default="fdr.log",help="logfile to use")
 parser.add_option("-s","--statfile",dest="statfile",default="",help="write statistics to file")
 parser.add_option("-c","--cutoff",dest="max_fdr",default=.05,type=float,help="maximally tolerated FDR (default=.05)")
-parser.add_option("-d","--decoy",dest="decoy_scale",default=1.,type=float,help="efficiency of decoy compared to true positives (1 for random genome, .5 for antisense)")
+parser.add_option("-d","--decoy",dest="decoy_scale",default=1.,type=float,help="efficiency of decoy compared to reference (typically < 1.0)")
 parser.add_option("-2","",dest="combinations",default=False,action="store_true",help="also explore score combinations (takes a long time, off by default)")
 parser.add_option("-p","--pdf",dest="pdf",default="",help="render PDFs to this path")
 
@@ -51,7 +51,7 @@ class ClusterSet(object):
         It offers methods to apply scoring functions to the raw quality
         metrics computed by parclip.py and furthermore to select cutoffs
         on these scores or raw metrics to deplete false positives 
-        (FP=decoy hits) more strongly than true positives (TP=transcript 
+        (FP=decoy hits) more strongly than true positives (TP=reference 
         hits) and thus satisfy a false discovery rate (FDR) limit.
         """
         t0 = time()
@@ -79,8 +79,8 @@ class ClusterSet(object):
             self.N = len(self.data['cid'])
             flags = self.data['sense']
             
-            self.tp_index = (flags == 'transcript').nonzero()[0]
-            self.fp_index = (flags == 'antisense').nonzero()[0]
+            self.tp_index = (flags == 'reference').nonzero()[0]
+            self.fp_index = (flags == 'decoy').nonzero()[0]
 
             self.unfiltered_fdr = self.fdr()
         
@@ -92,7 +92,7 @@ class ClusterSet(object):
     def fdr(self,indices=set()):
         """
         estimate the false discovery rate for (a subset) of a cluster set
-        based on annotation as transcript aligning or decoy hit.
+        based on annotation as reference aligning or decoy hit.
         """
         if not self.N:
             return 0.5
@@ -101,31 +101,18 @@ class ClusterSet(object):
             indices = arange(self.N)
             
         flags = take(self.data['sense'],indices)
-        
-        ## assume all antisense are fp and correct for decoy efficiency
-        #fp = (flags == 'antisense').sum() / options.decoy_scale
-        
-        ## assume as many fp on sense than on antisense
-        #tp = max(0,(flags == 'transcript').sum() - fp)
-        #fp *=2
-
-        ##f = (fp + 1.) / (tp + fp + 2.)
-        #f = (fp + 1.) / (tp + fp + 2.)
-        return self._fdr((flags == 'transcript').sum(),(flags == 'antisense').sum())
+        return self._fdr((flags == 'reference').sum(),(flags == 'decoy').sum())
 
     @staticmethod
     def _fdr(real,decoy):
         #print "_FDR",real,decoy
         fp = decoy / options.decoy_scale
         
-        # assume as many fp on real than on (scaled) decoy
+        # assume as many fp on reference than on (scaled) decoy
         tp = max(0,real - fp)
-        fp *=2
 
-        #f = (fp + 1.) / (tp + fp + 2.)
-        f = (fp + 1.) / (tp + fp + 2.)
-        
-        return f
+        # pseudo counts: in absence of data, est. FDR -> 0.5
+        return (fp + 1.) / (tp + fp + 2.)
         
     def score(self,name,func):
         """
@@ -479,7 +466,7 @@ class ClusterSet(object):
             out = "\t".join([str(g) for g in gff])
             if i in kept_indices:
                 if i in self.fp_index:
-                    N['antisense'] += 1
+                    N['decoy'] += 1
                     sys.stderr.write(out+'\n')
                 else:
                     N['kept'] += 1
@@ -512,8 +499,6 @@ scoring_functions = {
     'mean_pp' : lambda s : float(s._asdict().get('mean_pp',0)),
     'median_pp' : lambda s : float(s._asdict().get('median_pp',0)),
     'max_pp' : lambda s : float(s._asdict().get('max_pp',0)),
-    'mapqual' : lambda s : {'UNIQ40_K0' : 10,'UNIQ10_K0': 9,'UNIQ1_K0': 8,'UNIQ40_K1' : 7,'UNIQ10_K1' : 6,'UNIQ1_K1' : 5, 'UNIQ40_K2' : 4,'UNIQ10_K2' : 3,'UNIQ1_K2' : 2, 'DUBIOUS' : 1}[s._asdict().get('map_qual')]
-    #'fail' : lambda s : 0,
 }
 
 T0 = time()
@@ -587,333 +572,9 @@ if options.statfile:
 
     from byo.parclip.statistics import Stats
     stats = Stats(path=options.statfile)
-    d = dict(raw_clusters=N['total'],kept=N['kept'],fp_remaining=N['antisense'],FDR=fdr,raw_FDR=unfiltered_fdr,loss=100*loss)
+    d = dict(raw_clusters=N['total'],kept=N['kept'],fp_remaining=N['decoy'],FDR=fdr,raw_FDR=unfiltered_fdr,loss=100*loss)
     d["FDR_%s" % ",".join(method)] = fdr
 
     stats.save_dict(title="cluster diag",stats=d)
     stats.flush()
-    # here comes the really ugly part. Make the tables with all the statistics.
-    
-    #f = file(options.statfile,"a")
-    #f.write(">FDR (false discovery rate filtering)\n# mapping quality class\tNO FILTER\t%s\n## --figsize=15,10 --labelspace=.2\n" % "\t".join(top_scorings))
-    #f.write("ALL\t%.3f" % (raw_fdr*100))
-
-    #for left,pri,name,tp_left,fp_left,ot_left,avg_fdr,raw_fdr in results[:top]:
-        #logger.info("-> %d (out of %d) clusters left after filtering by '%s', reducing FDR from %.3f %% to %.3f %%" % (left,N['total'],name,raw_fdr*100,avg_fdr*100))
-        #f.write("\t%.3f" % (avg_fdr*100))
-
-    #f.write("\n")
-
-    #for map_qual in ['NOHULL_K0','NOHULL_K1','NOHULL_K2','HULL_K0','HULL_K1','HULL_K2']:
-        #if not map_qual in stats_by_map_qual:
-            #continue
-
-        #raw_fdr = score_performance[top_scorings[0]][map_qual][1][0]*100
-        #f.write("%s\t%.3f\t%s" % (map_qual,raw_fdr,"\t".join(["%.3f" % (score_performance[n][map_qual][10]*100) for n in top_scorings])))
-        #f.write("\n")
-
-    #f.write(">Number of clusters\n# mapping quality class\tNO FILTER\t%s\n## --figsize=15,10 --labelspace=.2\n" % "\t".join(top_scorings))
-    #f.write("ALL\t%.3f" % N['total'])
-    #for left,pri,name,tp_left,fp_left,ot_left,avg_fdr,raw_fdr in results[:top]:
-        #f.write("\t%.3f" % left)
-
-    #f.write("\n")
-
-    #for map_qual in ['NOHULL_K0','NOHULL_K1','NOHULL_K2','HULL_K0','HULL_K1','HULL_K2']:
-        #if not map_qual in stats_by_map_qual:
-            #continue
-
-        #total_at_qual = int(np.array(score_performance[top_scorings[0]][map_qual][4:7]).sum())
-        #f.write("%s\t%.3f\t%s" % (map_qual,total_at_qual,"\t".join([str(np.array(score_performance[n][map_qual][7:10]).sum()) for n in top_scorings])))
-        #f.write("\n")
-    
-  
-  
-
         
-sys.exit(0)
-import bisect
-
-def compute_fdr_loss(tp_sig,fp_sig):
-    
-    fp = len(fp_sig)
-    tp = len(tp_sig)
-
-    breakpoints = sorted([0,]+list(set(fp_sig) | set(tp_sig)))
-
-    fdr = []
-    loss = []
-    for b in breakpoints:
-        f = fp - bisect.bisect_left(fp_sig,b)
-        l = bisect.bisect_left(tp_sig,b)
-        t = tp - l
-
-        if tp > 0:\
-            LLL = float(l)/tp
-        else:
-            LLL = 1.
-        logger.debug("b=%.3f fp=%d / %d tp=%d / %d -> fdr=%.3f loss=%.3f" % (b,f,fp,t,tp,float(f+1)/(f+t+2),LLL))
-
-        fdr.append(float(f+1)/(f+t+2))
-        loss.append(LLL)
-
-    return breakpoints,np.array(fdr),np.array(loss)
-
-
-score_performance = defaultdict(dict)
-
-colors = {
-    'NOHULL_K0' : 'k',
-    'NOHULL_K1' : 'g',
-    'NOHULL_K2' : 'y',
-    'HULL_K0' : 'c',
-    'HULL_K1' : 'm',
-    'HULL_K2' : 'r',
-}
-
-if options.pdf:
-    import matplotlib
-    matplotlib.use('pdf')
-    from pylab import figure,title,plot,axhline,axvline,legend,ylim,text,twinx,ylabel,xlabel
-
-#M = []
-#M_names = [s.cid for s in raw_data]
-#M_flags = array([s.sense for s in raw_data])
-
-#for name in sorted(scoring_functions.keys()):
-    #func = scoring_functions[name]
-
-    #M.append([func(s) for s in raw_data])
-
-#M = transpose(array(M))
-#import byo.parclip.pca as pca
-#pca.Center(M)
-
-
-
-#P = pca.PCA(M)
-#P.npc = 2
-#res = transpose(P.pc())
-
-#def print_component(C):
-    #c_abs = abs(C)
-    #print c_abs
-    #ind = c_abs.argsort()[::-1]
-    #print ind
-    
-    #bla = zip(C,sorted(scoring_functions.keys()))
-    #print bla
-    
-    #for c,name in [bla[i] for i in ind]:
-        #print name,"%.4f" % c
-        
-#print res.shape
-#print "first component"
-#print_component(P.Vt[0])
-
-#print "second component"
-#print_component(P.Vt[1])
-
-#x,y = res
-
-#from pylab import *
-
-#i_tx = (M_flags == 'transcript').nonzero()[0]
-#i_decoy = (M_flags == 'antisense').nonzero()[0] 
-#print M_flags
-#print i_tx
-#scatter(x,y,color='gray')
-#scatter(x.take(i_tx),y.take(i_tx),s=5,color='blue')
-#scatter(x.take(i_decoy),y.take(i_decoy),s=5,color='red')
-
-#show()
-
-#sys.exit(1)
-
-for name,func in scoring_functions.items():
-    if name == 'fail':
-        continue
-    #print "-> scoring function",name
-
-    # PLOTTING
-    if options.pdf:
-        figure(figsize=(15,10))
-        ylim(0,100)    
-        ylabel("loss [%]")
-        xlabel("cluster score: '%s'" % name)
-        ax2 = twinx()
-        ylabel("FDR [%]")
-        
-        maxcut = 0
-    
-    works = False
-    
-    for map_qual in sorted(stats_by_map_qual.keys()):
-        stats = stats_by_map_qual[map_qual]
-        
-        fp = len(stats['antisense'])
-        tp = len(stats['transcript'])
-        ot = len(stats['overlap_tx']) + len(stats['intergenic'])
-    
-        fp_sig = sorted([func(s) for s in stats['antisense']])
-        tp_sig = sorted([func(s) for s in stats['transcript']])
-        ot_sig = sorted([func(s) for s in stats['overlap_tx']]+[func(s) for s in stats['intergenic']])
-    
-        breakpoints,fdr,loss = compute_fdr_loss(tp_sig,fp_sig)
-        logger.debug("map_qual %s (fp=%d tp=%d) -> unfiltered FDR=%.2f %%" % (map_qual,fp,tp,fdr[0]*100))
-        
-        cutoff_cand = (fdr < options.max_fdr).nonzero()[0]
-        if len(cutoff_cand):
-            cutoff_i = cutoff_cand[0]
-            cutoff = breakpoints[cutoff_i]
-
-            t_left = tp - bisect.bisect_left(tp_sig,cutoff)
-            f_left = fp - bisect.bisect_left(fp_sig,cutoff)
-            o_left = ot - bisect.bisect_left(ot_sig,cutoff)
-
-            select_fdr = fdr[cutoff_i]
-            logger.debug("%s FDR(%.3f) = %.2f %%  (< %.3f%%) for %d fp and %d tp (loss=%.2f %%) %d other (%d total)" % (name,cutoff,fdr[cutoff_i] * 100,options.max_fdr,f_left,t_left,loss[cutoff_i]*100,o_left,ot))
-
-            #tp_left += t_left
-            works = True
-            
-        else:
-            logger.warning("method '%s' is unable to satisfy FDR constraint in '%s'" % (name,map_qual))
-            t_left = 0
-            f_left = 0
-            o_left = 0
-            cutoff = breakpoints[len(breakpoints)-1]+1
-            select_fdr = 0
-
-        score_performance[name][map_qual] = (breakpoints,fdr,loss,cutoff,tp,fp,ot,t_left,f_left,o_left,select_fdr)
-        #print cutoff_i,cutoff
-        
-        if options.pdf:
-            ax2.plot(breakpoints,100*fdr,colors[map_qual]+'-', drawstyle='steps-mid',label="%s FDR" % map_qual)#,linestyle='step')
-            plot(breakpoints,25*loss,colors[map_qual]+'--', drawstyle='steps-post',label="%s loss" % map_qual)#,linestyle='step')
-            #print array(100*loss,dtype=int)
-            
-            if cutoff < breakpoints[-1]:
-                axvline(cutoff,color=colors[map_qual],linewidth=.1)
-                maxcut = min(max(cutoff*2,maxcut),breakpoints[-1])
-        
-            if select_fdr == 0:
-                maxcut = breakpoints[-1]
-
-    if options.pdf:
-        base = os.path.basename(args[0]).split(".cluster_stats.tsv")[0]        
-        title(base)
-        oc = options.max_fdr*100
-        ax2.axhline(oc,color="gray",linestyle='dashed',linewidth=.1)
-        #text("FDR-cutoff",-1,oc)
-        
-        legend(loc='upper-left')
-        ax2.set_ylim((0,25))
-        xlim(0,maxcut)
-        #show()
-        #if works:
-        from byo.io import ensure_path
-        savefig(os.path.join(ensure_path(options.pdf),"FDR_%s_%s.pdf" % (name,base)))
-        # END PLOTTING
-
-results = []
-#sys.exit(1)
-# use as additional cues when sorting results. Only used to break ties in a non-confusing way!
-priorities = {
-    'signature' : 2,
-    'signature_density' : 2,
-    '4su_density' : 1,
-    '6sg_density' : 1,
-    '4su' : 0,
-    '6sg' : 0,
-}
-
-for name,d in score_performance.items():
-    tp_left = 0
-    fp_left = 0
-    ot_left = 0
-    avg_fdr = 0.0
-    raw_fdr = 0.0
-    total = 0
-    total_tp_fp = 0
-    
-    for map_qual,(breakpoints,fdr,loss,cutoff,tp,fp,ot,t_left,f_left,o_left,select_fdr) in d.items():
-        tp_left += t_left
-        fp_left += f_left
-        ot_left += o_left
-        
-        total += fp+tp+ot
-        total_tp_fp += fp+tp
-
-        avg_fdr += select_fdr * (t_left+f_left)
-        raw_fdr += fdr[0] * (tp+fp)
-
-    left = tp_left+ot_left
-
-    if (tp_left+fp_left):
-        avg_fdr /= (tp_left+fp_left)
-    else:
-        avg_fdr = 0
-        
-    raw_fdr /= total_tp_fp
-    results.append((left,priorities.get(name,-1),name,tp_left,fp_left,ot_left,avg_fdr,raw_fdr))
-
-    
-results = sorted(results,reverse=True)
-if not results:
-    results = [(0,0,"fail",0,0,0,1.,1.)]
-    total = .01
-    
-top = 3
-top_scorings = [r[2] for r in results[:top]]
-
-# now the actual filtering
-best_scorer = top_scorings[0]
-best_func = scoring_functions[best_scorer]
-
-fp_above_cutoff = 0
-from byo.io.gff import gff_importer,dict_from_attrstr
-N = defaultdict(int)
-for gff in gff_importer(args[1]):
-    #print gff
-    N["total"] += 1
-    attrs = dict_from_attrstr(gff.attr_str)
-    cid = attrs['name']
-
-    if not cid in stats_by_id:
-        logger.warning("trying to filter the wrong cluster set? unknown id '%s'" % cid)
-        N["unknown ID"] += 1
-        continue
-    
-    map_qual = attrs['map_qual']
-    breakpoints,fdr,loss,cutoff,tp,fp,ot,t_left,f_left,o_left,select_fdr = score_performance[best_scorer][map_qual]
-    
-    score = best_func(stats_by_id[cid])
-
-    i = bisect.bisect_left(breakpoints,score)
-    if i < len(fdr):
-        est_fdr = fdr[i]
-    else:
-        est_fdr = fdr[-1]
-    #if est_fdr > options.max_fdr:
-        #N["FDR_too_large"] += 1
-    if score < cutoff:
-        N["low_score"] += 1
-        continue
-    
-    
-    est_fdr *= 100
-    gff = list(gff)
-    gff[7] = est_fdr
-    gff[8] = gff[8].rstrip() + ' filtered_by="%s"; est_FDR="%.3f";' % (best_scorer,est_fdr)
-
-    out = "\t".join([str(g) for g in gff])
-    if stats_by_id[cid].sense == "antisense":
-        N['antisense'] += 1
-        sys.stderr.write(out+'\n')
-        fp_above_cutoff += 1
-    else:
-        N['kept'] += 1
-        print out
-
-

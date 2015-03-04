@@ -12,8 +12,19 @@ def entropy_of_pos(pos,counts):
 
     return - (p * np.log2(p)).sum()
 
+from editedcluster import EditedCluster, requires_read_parsing
 
-from editedcluster import EditedCluster
+def requires_map_parsing(f):
+    """
+    A decorator that wraps functions or properties that 
+    require to go through the list of all alignments and 
+    parse their various mapping quality metrics.
+    """
+    def wrapper(self,*args,**kwargs):
+        if not self._map_scored:
+            self.parse_map_scores()
+        return f(self,*args,**kwargs)
+    return wrapper
 
 class ScoredCluster(EditedCluster):
 
@@ -38,9 +49,9 @@ class ScoredCluster(EditedCluster):
             self._scorefuncname = "iclip_score"
         else:
             self._scorefuncname = "conversion_score"
-                
+
+    @requires_read_parsing
     def parse_map_scores(self):
-        if not self._parsed: self.parse_reads()
         for r,w in zip(self.reads,self.counts):
             # record MAPQ mapping quality (0..255)
             self.mapq.append(r.mapq)
@@ -79,34 +90,38 @@ class ScoredCluster(EditedCluster):
         self._map_scored = True
 
     @property
+    @requires_read_parsing
     def score(self):
         return getattr(self,self._scorefuncname)
 
     @property
+    @requires_read_parsing
     def conversion_score(self):
-        if not self._parsed: self.parse_reads()
         return self.conversions.sum()
 
     @property
+    @requires_read_parsing
     def signature_density(self):
         return self.conversion_score / self.n_reads
 
     @property
+    @requires_read_parsing
     def entropy_5p(self):
-        if not self._parsed: self.parse_reads()
         if self.strand == '-':
             return entropy_of_pos(self.ends,self.counts)
         else:
             return entropy_of_pos(self.starts,self.counts)
+
     @property
+    @requires_read_parsing
     def entropy_3p(self):
-        if not self._parsed: self.parse_reads()
         if self.strand == '-':
             return entropy_of_pos(self.starts,self.counts)
         else:
             return entropy_of_pos(self.ends,self.counts)
 
     @property
+    @requires_read_parsing
     def iclip_score(self):
         # 1. for a single read, goes to zero the more reads we have
         default = 2. / (self.n_reads + 1.)
@@ -119,74 +134,74 @@ class ScoredCluster(EditedCluster):
         return (self.entropy_3p + default) / (self.entropy_5p + default)
 
     @property
+    @requires_read_parsing
     def n_reads(self):
-        if not self._parsed: self.parse_reads()
         return self.counts.sum()
-    
+
     @property
     def uniq_reads(self):
         return len(self.reads)
     
     @property
+    @requires_map_parsing
     def cum_uniq(self):
-        if not self._map_scored: self.parse_map_scores()
         return (self.counts * self.uniqness).sum()
+
     @property
+    @requires_map_parsing
     def max_uniq(self):
-        if not self._map_scored: self.parse_map_scores()
         return self.uniqness.max()
+
     @property
+    @requires_map_parsing
     def avg_uniq(self):
-        if not self._map_scored: self.parse_map_scores()
         return (self.counts * self.uniqness).sum() / self.counts.sum()
 
-
-
     @property
+    @requires_map_parsing
     def cum_mapq(self):
-        if not self._map_scored: self.parse_map_scores()
         return (self.counts * self.mapq).sum()
+
     @property
+    @requires_map_parsing
     def max_mapq(self):
-        if not self._map_scored: self.parse_map_scores()
         return self.mapq.max()
+
     @property
+    @requires_map_parsing
     def avg_mapq(self):
-        if not self._map_scored: self.parse_map_scores()
         return (self.counts * self.mapq).sum() / self.counts.sum()
 
-
-
     @property
+    @requires_map_parsing
     def cum_pp(self):
-        if not self._map_scored: self.parse_map_scores()
         return (self.counts * self.pp).sum()
+
     @property
+    @requires_map_parsing
     def max_pp(self):
-        if not self._map_scored: self.parse_map_scores()
         return self.pp.max()
+
     @property
+    @requires_map_parsing
     def avg_pp(self):
-        if not self._map_scored: self.parse_map_scores()
         return (self.counts * self.pp).sum() / self.counts.sum()
 
-        
     @property
+    @requires_read_parsing
     def profile_KL(self):
         """
         KL-divergence between observed profile and uniform coverage. 
         """
-        if not self._parsed: self.parse_reads()
-        
         p = self.coverage / float(self.coverage.sum())
         return np.where(p> 0,p * np.log2(self.L*p),0).sum()
+
     @property
+    @requires_read_parsing
     def seq_entropy(self):
         """
         Shannon entropy of the nucleotide observations (0 for no mismatches)
         """
-        if not self._parsed: self.parse_reads()
-        
         p = np.array(self.nuc_matrix,dtype=np.float32) / self.nuc_matrix.sum(axis=1)[:,np.newaxis]
         return np.where(p> 0,-p * np.log2(p),0).sum()
 
@@ -200,6 +215,6 @@ class ScoredCluster(EditedCluster):
         return "%s%s %d:%d " % (self.chrom,self.strand,self.start,self.end)
 
     @property
+    @requires_read_parsing
     def n_conv_pos(self):
-        if not self._parsed: self.parse_reads()
         return (self.conversions > 0).sum()

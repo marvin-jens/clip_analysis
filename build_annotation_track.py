@@ -19,27 +19,22 @@ Read features from supplied gffs/gene models from ucsc tables and build a genome
 """
 
 parser = OptionParser(usage=usage)
-parser.add_option("-S","--system",dest="system",type=str,default="hg19",help="model system (hg18,ce6,...)")
+parser.add_option("-S","--system",dest="system",type=str,default="hg19",help="model system (*hg19*,ce6,mm9)")
 parser.add_option("-p","--processes",dest="processes",default=None,type=int,help="number of processes to use. (default=cpu_count())")
-parser.add_option("-d","--destination",dest="destination",default="system_annotation",help="destination (default: annotation_track)")
-parser.add_option("-G","--gene_names",dest="gene_names",type=str,default="",help="additional gene name translation table")
+parser.add_option("-d","--destination",dest="destination",default="annotation/compiled",help="destination (default: annotation/compiled)")
+parser.add_option("-G","--gene_names",dest="gene_names",type=str,default="annotation/gene_names",help="additional gene name translation table")
 parser.add_option("-F","--dontfixchr",dest="fix_chr",default=True,action="store_false",help="don't add 'chr' to chrom identifiers that lack it (e.g for Contigs)")
 options,args = parser.parse_args()
 
-import byo.systems
-system = getattr(byo.systems,options.system)
+import importlib
+system = importlib.import_module("byo.systems.{options.system}".format(**locals()))
 
 if not system.chr_sizes:
-    logging.error("Uninitialized model system '%s'. Run make as described in the output of bootstrap.py, aborting!" % options.system)
+    logging.error("Uninitialized model system '%s'. Please run make first!" % options.system)
     sys.exit(1)
 
 gene_names = {}
-if not options.gene_names:
-    gn_path = os.path.join(system.root,"annotation","gene_names")
-else:
-    gn_path = options.gene_names
-
-if os.path.exists(gn_path):
+if os.path.exists(options.gene_names):
     for line in file(gn_path):
         name,gene = line.rstrip().split('\t')
         gene_names[name] = gene
@@ -83,7 +78,7 @@ def do_chrom((chr_key,size,fname)):
         # assign an increasing number to each unique combination
         buf[start:end] = ann_dict[ann_key]
 
-        if (N % 1000) == 0:
+        if (N % 10000) == 0:
             log.debug("#%.1f %% scanned: found %d keys until pos %d/%d. " % (end*100./size,N,end,size))
 
     log.debug("# freeing buffers")
