@@ -62,10 +62,10 @@ hg19_decoy: reference/hg19/hg19_w_decoy.fa reference/hg19/.bwa_hg19_w_decoy
 	touch hg19_decoy
 
 reference/hg19/hg19_w_decoy.fa: reference/hg19/hg19.fa
-	./markov.py -l 500000000 hg19.2mer > rnd_hg19.fa
-	./markov.py -H ">chrmarkov_utr3" -l 10000000 utr3.2mer > rnd_3utr.fa
-	./markov.py -H ">chrmarkov_intron" -l 100000000 introns.2mer > rnd_introns.fa
-	./markov.py -H ">chrmarkov_CDS" -l 10000000 utr3.2mer > rnd_cds.fa
+	./markov.py -l 500000000 2mer_freqs/hg19.2mer > rnd_hg19.fa
+	./markov.py -H ">chrmarkov_utr3" -l 10000000 2mer_freqs/utr3.2mer > rnd_3utr.fa
+	./markov.py -H ">chrmarkov_intron" -l 100000000 2mer_freqs/introns.2mer > rnd_introns.fa
+	./markov.py -H ">chrmarkov_CDS" -l 10000000 2mer_freqs/utr3.2mer > rnd_cds.fa
 	cat rnd_hg19.fa rnd_3utr.fa rnd_introns.fa rnd_cds.fa reference/hg19/hg19.fa > reference/hg19/hg19_w_decoy.fa
 
 reference/hg19/.bwa_hg19_w_decoy: reference/hg19/hg19_w_decoy.fa
