@@ -29,7 +29,7 @@ collapsed.elavl1_4su_test_data.fastq.gz: trimmed.elavl1_4su_test_data.fastq.gz
 	gzip > collapsed.elavl1_4su_test_data.fastq.gz
 
 trimmed.elavl1_4su_test_data.fastq.gz: elavl1_4su_test_data.fastq.gz
-	echo -e '>adapter\nTCGTATGCCGTCTTCTGCTTGT' > adapter.fa
+	echo '>adapter\nTCGTATGCCGTCTTCTGCTTGT' > adapter.fa
 	flexbar -a adapter.fa -ae RIGHT --adapter-threshold=2 \
 	-r elavl1_4su_test_data.fastq.gz \
 	-t trimmed.elavl1_4su_test_data \
@@ -61,14 +61,14 @@ reference/hg19/.bwa_hg19: reference/hg19/hg19.fa
 hg19_decoy: reference/hg19/hg19_w_decoy.fa reference/hg19/.bwa_hg19_w_decoy
 	touch hg19_decoy
 
-reference/hg19/hg19_w_decoy.fa: hg19_reference 
+reference/hg19/hg19_w_decoy.fa: reference/hg19/hg19.fa
 	./markov.py -l 500000000 hg19.2mer > rnd_hg19.fa
 	./markov.py -H ">chrmarkov_utr3" -l 10000000 utr3.2mer > rnd_3utr.fa
 	./markov.py -H ">chrmarkov_intron" -l 100000000 introns.2mer > rnd_introns.fa
 	./markov.py -H ">chrmarkov_CDS" -l 10000000 utr3.2mer > rnd_cds.fa
 	cat rnd_hg19.fa rnd_3utr.fa rnd_introns.fa rnd_cds.fa reference/hg19/hg19.fa > reference/hg19/hg19_w_decoy.fa
 
-reference/hg19/.bwa_hg19_w_decoy: reference/hg19_w_decoy/hg19_w_decoy.fa
+reference/hg19/.bwa_hg19_w_decoy: reference/hg19/hg19_w_decoy.fa
 	echo "building BWA index..."
 	-bwa 2>&1 | grep Version > reference/hg19/bwa_hg19_w_decoy.jk
 	cd reference/hg19; bwa index -a bwtsw hg19_w_decoy.fa >> bwa_hg19_w_decoy.jk 2> bwa_hg19_w_decoy.jk2
