@@ -24,6 +24,9 @@ options,args = parser.parse_args()
 seed(options.seed)
 
 def load_freqs(fname):
+    """
+    loads nucleotide and di-nucleotide frequencies from a flat file
+    """
     elements = []
     freqs = []
     
@@ -45,16 +48,22 @@ def load_freqs(fname):
     return k,elements,freqs
 
 def draw(elements,cum_p):
+    """
+    take the first element where the cumulative probability 
+    is larger than the uniform random number. This is guaranteed
+    to return elements with the desired frequency because it
+    subdivides the [0,1] interval into slices, whose size
+    is proportional to the probability with which the corresponding
+    element should be drawn.
+    """
     mask = ((cum_p - random()) > 0)
-    i = mask.nonzero()[0][0]
+
+    i = mask.argmax() 
     return elements[i]
 
 def generate(L,k,elements,freqs):
     freqs /= freqs.sum(axis=1)[:,newaxis]
-    
     cum_p = freqs.cumsum(axis=1)
-
-
     p = freqs.sum(axis=1)
     
     nucs = list(k_mers(1))
