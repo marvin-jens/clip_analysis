@@ -47,7 +47,7 @@ reference/hg19/hg19.fa:
 	wget -c http://hgdownload.cse.ucsc.edu/goldenPath/hg19/bigZips/chromFa.tar.gz -O - | gunzip | tar -xf - -O > reference/hg19/hg19.fa
 
 reference/hg19/chrom.sizes:
-	-mkdir reference 2> /dev/null
+	-mkdir -p reference/hg19 2> /dev/null
 	wget -c http://hgdownload.cse.ucsc.edu/goldenPath/hg19/bigZips/hg19.chrom.sizes  -O - > reference/hg19/chrom.sizes
 
 reference/hg19/.bwa_hg19: reference/hg19/hg19.fa
