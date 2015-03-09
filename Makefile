@@ -72,7 +72,7 @@ reference/hg19/.bwa_hg19_w_decoy: reference/hg19/hg19_w_decoy.fa
 	echo "building BWA index..."
 	-bwa 2>&1 | grep Version > reference/hg19/bwa_hg19_w_decoy.jk
 	cd reference/hg19; bwa index -a bwtsw hg19_w_decoy.fa >> bwa_hg19_w_decoy.jk 2> bwa_hg19_w_decoy.jk2
-	touch reference/hg19_w_decoy/.bwa_hg19_w_decoy
+	touch reference/hg19/.bwa_hg19_w_decoy
 
 ## Downloading transcript annotation (and optionally compiling it into a custom format for fast lookup)
 hg19_annotation: annotation/hg19/wgEncodeGencodeBasicV17.ucsc
